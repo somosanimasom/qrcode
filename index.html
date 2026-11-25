@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar · Kantatuga QR</title>
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <main class="login">
+        <section class="login-art">
+            <div class="brand">
+                <span class="brand-mark">
+                    <svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+                </span>
+                Kantatuga QR
+            </div>
+
+            <div class="login-pixels" id="pixels"></div>
+
+            <div class="login-headline">
+                <div class="kicker">Painel de gestão</div>
+                <h1>Um código.<br>Um <em>clique.</em><br>Um cliente.</h1>
+                <p>Crie QR codes para os sites dos seus clientes, guarde-os num só lugar e descarregue-os quando precisar.</p>
+            </div>
+
+            <div class="login-foot">© <span id="year"></span> Kantatuga</div>
+        </section>
+
+        <section class="login-panel">
+            <div class="login-card">
+                <h2>Entrar</h2>
+                <p class="sub">Aceda ao painel com as suas credenciais.</p>
+                <form id="login-form" autocomplete="on">
+                    <div class="field">
+                        <label for="user">Utilizador</label>
+                        <div class="input">
+                            <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+                            <input id="user" name="username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="O seu utilizador" required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="pass">Senha</label>
+                        <div class="input">
+                            <svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                            <input id="pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+                            <button type="button" class="toggle-pass" id="toggle-pass" aria-label="Mostrar senha">
+                                <svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="error-msg" id="error"></div>
+                    <button class="btn btn-primary" type="submit" id="submit">
+                        Entrar no painel
+                        <svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    </button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+KANTATUGA QR — APLICAÇÃO PARA ALOJAMENTO WEB
+=============================================
+
+REQUISITOS
+- Alojamento com PHP 7.4 ou superior
+- Extensão PDO SQLite ativa (vem ativa na maioria dos alojamentos)
+- Servidor Apache (cPanel, Plesk, etc.) — recomendado
+
+INSTALAÇÃO
+1. Extraia este ZIP no seu computador.
+2. Envie TODO o conteúdo da pasta (incluindo os ficheiros .htaccess,
+   que podem estar ocultos) para o alojamento, por FTP ou pelo
+   Gestor de Ficheiros, para a pasta public_html (ou uma subpasta,
+   por exemplo public_html/qr).
+3. Confirme que a pasta "data" tem permissão de escrita (755 ou 775).
+4. Abra o endereço do site no browser e entre com o utilizador e a
+   senha habituais (utilizador em minúsculas).
+
+SE O LOGIN NÃO FUNCIONAR
+Abra no browser o endereço do site seguido de /verificar.php
+(ex.: https://o-seu-site.pt/verificar.php). A página mostra o que
+está em falta (versão do PHP, SQLite, permissões, ficheiros ocultos)
+e como corrigir.
+
+Na primeira utilização, os clientes incluídos neste ZIP são
+importados automaticamente.
+
+FICHEIROS IMPORTANTES
+- config.php  utilizador, senha (encriptada) e chave da sessão.
+              Não partilhe este ficheiro.
+- data/       base de dados com os clientes. Faça cópia desta pasta
+              para guardar os dados.
+
+SEGURANÇA
+Use um endereço com HTTPS (certificado SSL), disponível gratuitamente
+na maioria dos alojamentos.
+Se o alojamento usar Nginx em vez de Apache, peça ao suporte para
+bloquear o acesso direto à pasta "data".

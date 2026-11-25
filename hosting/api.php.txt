@@ -1,0 +1,142 @@
+<?php
+/**
+ * API — QR Codes de clientes (versão para alojamento web, PHP + SQLite)
+ *
+ * Ações (POST JSON { action, ... }):
+ * - login   { user, pass }            → { token }
+ * - list    (auth)                    → { items }
+ * - create  (auth) { name, url }      → { item }
+ * - delete  (auth) { id }             → { ok }
+ * - export  (auth)                    → { items, config }
+ */
+header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+// Avisos do PHP no meio da resposta estragam o JSON: registam-se no log, não se mostram
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
+const TOKEN_TTL = 12 * 60 * 60;
+
+function out($data, $status = 200) {
+    http_response_code($status);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') out(['error' => 'Método não permitido'], 405);
+
+$config = require __DIR__ . '/config.php';
+
+function b64url($s) { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
+function b64url_decode($s) { return base64_decode(strtr($s, '-_', '+/')); }
+
+function make_token($user, $secret) {
+    $payload = b64url(json_encode(['u' => $user, 'exp' => (time() + TOKEN_TTL) * 1000]));
+    return $payload . '.' . b64url(hash_hmac('sha256', $payload, $secret, true));
+}
+
+function verify_token($token, $secret) {
+    $parts = explode('.', (string) $token);
+    if (count($parts) !== 2) return false;
+    $expected = b64url(hash_hmac('sha256', $parts[0], $secret, true));
+    if (!hash_equals($expected, $parts[1])) return false;
+    $data = json_decode(b64url_decode($parts[0]), true);
+    return is_array($data) && ($data['exp'] ?? 0) > time() * 1000;
+}
+
+function normalize_url($raw) {
+    $url = trim((string) $raw);
+    if ($url === '') return null;
+    if (!preg_match('#^https?://#i', $url)) $url = 'https://' . $url;
+    $host = parse_url($url, PHP_URL_HOST);
+    if (!$host || strpos($host, '.') === false || !filter_var($url, FILTER_VALIDATE_URL)) return null;
+    return $url;
+}
+
+function db($config) {
+    $dir = __DIR__ . '/data';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $pdo = new PDO('sqlite:' . $dir . '/' . $config['db'], null, null, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS qrcodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)');
+
+    // Primeira utilização: importa os clientes que vieram no ZIP
+    $seeded = $pdo->query("SELECT v FROM meta WHERE k = 'seeded'")->fetchColumn();
+    if (!$seeded) {
+        $pdo->beginTransaction();
+        $ins = $pdo->prepare('INSERT INTO qrcodes (name, url, created_at) VALUES (?, ?, ?)');
+        foreach (array_reverse($config['seed'] ?? []) as $it) {
+            $ins->execute([$it['name'], $it['url'], $it['created_at']]);
+        }
+        $pdo->exec("INSERT INTO meta (k, v) VALUES ('seeded', '1')");
+        $pdo->commit();
+    }
+    return $pdo;
+}
+
+function row($r) {
+    return ['id' => (int) $r['id'], 'name' => $r['name'], 'url' => $r['url'], 'created_at' => $r['created_at']];
+}
+
+try {
+    $body = json_decode(file_get_contents('php://input'), true) ?: [];
+    $action = $body['action'] ?? '';
+
+    if ($action === 'login') {
+        $user = strtolower(trim((string) ($body['user'] ?? '')));
+        $ok = hash_equals(hash('sha256', strtolower((string) $config['user'])), hash('sha256', $user))
+            && hash_equals($config['pass_hash'], hash('sha256', $config['salt'] . ($body['pass'] ?? '')));
+        if (!$ok) out(['error' => 'Utilizador ou senha incorretos'], 401);
+        out(['token' => make_token($config['user'], $config['secret'])]);
+    }
+
+    $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    $token = preg_replace('/^Bearer\s+/i', '', $auth) ?: ($body['_token'] ?? '');
+    if (!verify_token($token, $config['secret'])) out(['error' => 'Sessão expirada'], 401);
+
+    $pdo = db($config);
+
+    switch ($action) {
+        case 'list':
+            $rows = $pdo->query('SELECT * FROM qrcodes ORDER BY created_at DESC, id DESC LIMIT 1000')->fetchAll();
+            out(['items' => array_map('row', $rows)]);
+
+        case 'create':
+            preg_match('/^.{0,120}/us', trim((string) ($body['name'] ?? '')), $m);
+            $name = $m[0] ?? '';
+            $url = normalize_url($body['url'] ?? '');
+            if ($name === '') out(['error' => 'Indique o nome do cliente'], 400);
+            if (!$url) out(['error' => 'Link inválido'], 400);
+            $created = gmdate('Y-m-d\TH:i:s.v\Z');
+            $pdo->prepare('INSERT INTO qrcodes (name, url, created_at) VALUES (?, ?, ?)')->execute([$name, $url, $created]);
+            out(['item' => ['id' => (int) $pdo->lastInsertId(), 'name' => $name, 'url' => $url, 'created_at' => $created]]);
+
+        case 'delete':
+            $id = (int) ($body['id'] ?? 0);
+            if (!$id) out(['error' => 'ID inválido'], 400);
+            $pdo->prepare('DELETE FROM qrcodes WHERE id = ?')->execute([$id]);
+            out(['ok' => true]);
+
+        case 'export':
+            $items = array_map('row', $pdo->query('SELECT * FROM qrcodes ORDER BY created_at DESC, id DESC')->fetchAll());
+            $cfg = $config;
+            $cfg['seed'] = array_map(function ($it) { unset($it['id']); return $it; }, $items);
+            $cfg['db'] = 'qrcodes-' . bin2hex(random_bytes(8)) . '.sqlite';
+            $cfg['secret'] = bin2hex(random_bytes(32));
+            out(['items' => $items, 'config' => "<?php\n// Gerado automaticamente — não partilhe este ficheiro.\nreturn " . var_export($cfg, true) . ";\n"]);
+
+        default:
+            out(['error' => 'Ação desconhecida'], 400);
+    }
+} catch (Throwable $e) {
+    error_log($e->getMessage());
+    out(['error' => 'Erro no servidor'], 500);
+}

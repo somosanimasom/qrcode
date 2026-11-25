@@ -1,0 +1,15 @@
+KANTATUGA QR — VERSÃO PARA GITHUB PAGES / ALOJAMENTO SEM PHP
+==============================================================
+
+Esta versão só tem ficheiros estáticos (HTML, CSS, JS). O login e os
+clientes ficam na base de dados na nuvem — são os mesmos do painel
+original, por isso tudo o que criar aqui aparece lá e vice-versa.
+
+INSTALAÇÃO NO GITHUB PAGES
+1. Extraia este ZIP.
+2. No repositório, apague os ficheiros antigos e envie todo o
+   conteúdo (Add file → Upload files) e faça "Commit changes".
+3. Aguarde 1 a 2 minutos e abra o endereço do site.
+
+Funciona também em qualquer alojamento estático (Netlify, Vercel,
+ou um alojamento normal sem PHP).

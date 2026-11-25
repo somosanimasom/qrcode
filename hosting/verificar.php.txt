@@ -1,0 +1,86 @@
+<?php
+/**
+ * Diagnóstico da instalação — abra verificar.php no browser.
+ * Não mostra senhas nem chaves.
+ */
+header('Content-Type: text/html; charset=utf-8');
+ini_set('display_errors', '0');
+
+$checks = [];
+$add = function ($ok, $label, $help = '') use (&$checks) { $checks[] = [$ok, $label, $help]; };
+
+$add(version_compare(PHP_VERSION, '7.4.0', '>='), 'PHP ' . PHP_VERSION, 'É necessário PHP 7.4 ou superior. Altere a versão no painel do alojamento (ex.: cPanel → Selecionar versão do PHP).');
+$add(file_exists(__DIR__ . '/api.php'), 'Ficheiro api.php', 'Envie de novo o ficheiro api.php que vem no ZIP.');
+
+$config = null;
+if (!file_exists(__DIR__ . '/config.php')) {
+    $add(false, 'Ficheiro config.php', 'Falta o config.php — envie de novo todos os ficheiros do ZIP.');
+} else {
+    try {
+        $config = require __DIR__ . '/config.php';
+        $ok = is_array($config) && !empty($config['user']) && !empty($config['pass_hash']) && !empty($config['secret']);
+        $add($ok, 'Ficheiro config.php', 'O config.php está incompleto ou danificado — envie-o de novo a partir do ZIP (em modo binário, se usar FTP).');
+    } catch (Throwable $e) {
+        $add(false, 'Ficheiro config.php', 'O config.php tem um erro: ' . htmlspecialchars($e->getMessage()));
+    }
+}
+
+$add(extension_loaded('pdo_sqlite'), 'Extensão PDO SQLite', 'Ative a extensão "pdo_sqlite" no painel do alojamento (ex.: cPanel → Selecionar versão do PHP → Extensões).');
+$add(function_exists('hash_hmac') && function_exists('random_bytes'), 'Funções de segurança (hash, random_bytes)', 'Peça ao suporte do alojamento para as ativar.');
+
+$dir = __DIR__ . '/data';
+if (!is_dir($dir)) @mkdir($dir, 0755, true);
+$add(is_dir($dir) && is_writable($dir), 'Pasta data com permissão de escrita', 'Altere as permissões da pasta "data" para 755 (ou 775) no Gestor de Ficheiros.');
+$add(file_exists($dir . '/.htaccess'), 'Proteção da pasta data (.htaccess)', 'Envie o ficheiro data/.htaccess (é um ficheiro oculto — ative "mostrar ficheiros ocultos" no programa de FTP).');
+$add(file_exists(__DIR__ . '/.htaccess'), 'Ficheiro .htaccess principal', 'Envie o ficheiro .htaccess (oculto) que está na raiz do ZIP.');
+$add(file_exists(__DIR__ . '/js/config.js'), 'Ficheiro js/config.js', 'Envie a pasta js completa a partir do ZIP.');
+
+if ($config && extension_loaded('pdo_sqlite') && is_writable($dir)) {
+    try {
+        $pdo = new PDO('sqlite:' . $dir . '/' . $config['db'], null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $pdo->query('SELECT 1');
+        $add(true, 'Base de dados SQLite');
+    } catch (Throwable $e) {
+        $add(false, 'Base de dados SQLite', htmlspecialchars($e->getMessage()));
+    }
+}
+
+$allOk = !in_array(false, array_column($checks, 0), true);
+?>
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificação da instalação</title>
+<style>
+    body { font-family: system-ui, sans-serif; background: #0d0d10; color: #f2f0ea; margin: 0; padding: 40px 20px; }
+    main { max-width: 680px; margin: 0 auto; }
+    h1 { font-size: 26px; margin: 0 0 6px; }
+    .sum { color: #8d8b95; margin: 0 0 28px; }
+    ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    li { background: #15151a; border: 1px solid #22222a; border-radius: 12px; padding: 14px 16px; }
+    .row { display: flex; gap: 12px; align-items: center; font-weight: 600; }
+    .dot { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 13px; font-weight: 800; flex: none; }
+    .ok .dot { background: #ffd23f; color: #1a1500; }
+    .bad { border-color: #ff5a4e; }
+    .bad .dot { background: #ff5a4e; color: #fff; }
+    .help { color: #c9c6cf; margin: 8px 0 0 34px; font-size: 14px; line-height: 1.5; }
+    a { color: #ffd23f; }
+</style>
+</head>
+<body>
+<main>
+    <h1><?= $allOk ? 'Instalação correta' : 'Há problemas na instalação' ?></h1>
+    <p class="sum"><?= $allOk ? 'Está tudo pronto. <a href="index.html">Ir para o login</a>.' : 'Corrija os pontos a vermelho e recarregue esta página.' ?></p>
+    <ul>
+    <?php foreach ($checks as [$ok, $label, $help]): ?>
+        <li class="<?= $ok ? 'ok' : 'bad' ?>">
+            <div class="row"><span class="dot"><?= $ok ? '✓' : '!' ?></span><?= $label ?></div>
+            <?php if (!$ok && $help): ?><div class="help"><?= $help ?></div><?php endif; ?>
+        </li>
+    <?php endforeach; ?>
+    </ul>
+</main>
+</body>
+</html>
